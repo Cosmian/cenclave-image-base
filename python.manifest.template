@@ -1,0 +1,58 @@
+loader.entrypoint = "file:{{ gramine.libos }}"
+libos.entrypoint = "{{ entrypoint }}"
+loader.log_level = "{{ log_level }}"
+
+loader.env.LD_LIBRARY_PATH = "/lib:/usr/lib:{{ arch_libdir }}:/usr/{{ arch_libdir }}"
+loader.env.PYTHONPATH = "/usr/local/lib/python3.10/site-packages"
+loader.env.PYTHONDONTWRITEBYTECODE = "1"
+loader.env.PYTHONPYCACHEPREFIX = "/tmp"
+loader.env.PYTHONUNBUFFERED = "1"
+loader.env.TMP_PATH = "/tmp"
+loader.env.HOME = "/root"
+loader.env.KEY_PATH = "/key"
+loader.env.ENCLAVE_SK_PATH = "/key/enclave.key"
+loader.env.ENCLAVE_PK_PATH = "/key/enclave.pub"
+loader.env.SECRETS_PATH = "/root/.cache/cenclave/secrets.json"
+loader.env.SEALED_SECRETS_PATH = "/root/.cache/cenclave/sealed_secrets.json"
+loader.env.MODULE_PATH = "/app"
+
+loader.argv_src_file = "file:args"
+
+sys.enable_extra_runtime_domain_names_conf = true
+sys.disallow_subprocesses = true
+
+fs.mounts = [
+  { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
+  { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
+  { path = "{{ entrypoint }}", uri = "file:{{ entrypoint }}" },
+  { path = "{{ python.stdlib }}", uri = "file:{{ python.stdlib }}" },
+  { path = "/usr/local/bin/cenclave-bootstrap", uri = "file:{{ env.get('GRAMINE_VENV', '/usr/local') }}/bin/cenclave-bootstrap" },
+  { path = "/usr/local/lib/python3.10", uri = "file:{{ env.get('GRAMINE_VENV', '/usr/local') }}/lib/python3.10" },
+  { path = "/tmp", type = "tmpfs" },
+  { path = "/opt/input/app", uri = "file:{{ app_dir }}/" },
+  { path = "/root", uri = "file:{{ home_dir }}/", type = "encrypted",  key_name = "_sgx_mrenclave" },
+  { path = "/key", uri = "file:{{ key_dir }}/", type = "encrypted",  key_name = "_sgx_mrenclave" },
+  { path = "/app", uri = "file:{{ code_dir }}/", type = "encrypted",  key_name = "_sgx_mrenclave" },
+]
+
+sgx.remote_attestation = "dcap"
+sgx.enclave_size = "{{ enclave_size }}"
+sgx.max_threads = 256
+sgx.isvprodid = 1
+sgx.isvsvn = 10
+
+sgx.trusted_files = [
+  "file:{{ entrypoint }}",
+  "file:{{ gramine.libos }}",
+  "file:{{ gramine.runtimedir() }}/",
+  "file:{{ arch_libdir }}/",
+  "file:/usr/{{ arch_libdir }}/",
+  "file:{{ python.stdlib }}/",
+  "file:{{ env.get('GRAMINE_VENV', '/usr/local') }}/lib/python3.10/",
+  "file:/etc/localtime",
+  "file:/etc/mime.types",
+  "file:/usr/share/zoneinfo/UTC",
+  "file:{{ env.get('GRAMINE_VENV', '/usr/local') }}/bin/cenclave-bootstrap",
+  "file:args",
+  "file:{{ app_dir }}/",
+]
