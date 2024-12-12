@@ -57,7 +57,7 @@ export SECRETS_PATH=/root/.cache/cenclave/secrets.json
 export SEALED_SECRETS_PATH="/root/.cache/cenclave/sealed_secrets.json"
 export MODULE_PATH=/app
 
-mkdir "$KEY_PATH"
+mkdir -p "$KEY_PATH"
 
 # shellcheck source=/dev/null
 . "$GRAMINE_VENV/bin/activate"
