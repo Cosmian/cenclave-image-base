@@ -3,22 +3,26 @@
 set -e
 
 usage() {
-    echo "cenclave-run usage: $0 --size <size> --san <domain_name> --application <module:application> --id <uuid> [--host <host>] [--port <port>] [--subject <subject>] [--expiration <expiration_timestamp>] [--timeout <seconds>] [--dry-run] [--memory] "
+    echo "cenclave-run usage: $0 --application <module:application> --size <size> --san <domain_name> --id <uuid> [--host <host>] [--port <port>] [--subject <subject>] [--expiration <expiration_timestamp>] [--timeout <seconds>] [--dry-run] [--memory] [--force] [--debug]"
     echo ""
-    echo "The code tar [mandatory] (app.tar) and the SSL certificate [optional] (fullchain.pem) should be placed in $PACKAGE_DIR"
+    echo "The code tarball [mandatory] (app.tar) and the SSL certificate [optional] (fullchain.pem) should be placed in $PACKAGE_DIR"
     echo ""
-    echo "Example: $0 --size 8G --expiration 1669155711 --san localhost --application app:app --id 533a2b83-4bc5-4a9c-955e-208c530bfd15"
+    echo "Example: $0 --application app:app --size 8G --san localhost --id 533a2b83-4bc5-4a9c-955e-208c530bfd15" --expiration 1669155711
     echo ""
     echo "Arguments:"
-    echo -e "\t--debug      put the enclave in debug mode"
-    echo -e "\t--dry-run    allow to compute MRENCLAVE value from a non-sgx machine"
-    echo -e "\t--expiration the expiration date of the ratls. Mandatory if no certificate provided in $PACKAGE_DIR"
-    echo -e "\t--force      regenerate and recompile files if they are already existed from another enclave"
-    echo -e "\t--host       set the server host (default: $HOST)"
-    echo -e "\t--memory     print the memory usage"
-    echo -e "\t--port       set the server port (default: $PORT)"
-    echo -e "\t--subject    set the ratls certificat subject as an RFC 4514 string (default: $SUBJECT)"
-    echo -e "\t--timeout    stop the configuration server after this delay (in seconds)"
+    echo -e "\t--application        ASGI application path"
+    echo -e "\t--size               size of the enclave (human size, must be a power of 2)"
+    echo -e "\t--san                Subject Alternative Name in the RA-TLS certificate"
+    echo -e "\t--id                 identifier of the application as UUID in RFC4122"
+    echo -e "\t--host               server host (default: $HOST)"
+    echo -e "\t--port               server port (default: $PORT)"
+    echo -e "\t--subject            subject of the RA-TLS certificate as an RFC 4514 string (default: $SUBJECT)"
+    echo -e "\t--expiration         expiration date of the RA-TLS certificate (unix timestamp)"
+    echo -e "\t--timeout            time before stopping the configuration server (in seconds)"
+    echo -e "\t--dry-run            compute MRENCLAVE hash digest (no SGX processor required)"
+    echo -e "\t--memory             print expected memory usage of the application"
+    echo -e "\t--force              clean before compilation for Gramine"
+    echo -e "\t--debug              set the enclave in debug mode"
 
     exit 1
 }
@@ -62,14 +66,26 @@ parse_args() {
     # Parse args
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --application)
+            APPLICATION="$2"
+            shift # past argument
+            shift # past value
+            ;;
+
             --size)
             ENCLAVE_SIZE="$2"
             shift # past argument
             shift # past value
             ;;
 
-            --expiration)
-            EXPIRATION_DATE="$2"
+            --san)
+            SUBJECT_ALTERNATIVE_NAME="$2"
+            shift # past argument
+            shift # past value
+            ;;
+
+            --id)
+            ID="$2"
             shift # past argument
             shift # past value
             ;;
@@ -86,26 +102,14 @@ parse_args() {
             shift # past value
             ;;
 
-            --application)
-            APPLICATION="$2"
-            shift # past argument
-            shift # past value
-            ;;
-
-            --id)
-            ID="$2"
-            shift # past argument
-            shift # past value
-            ;;
-
             --subject)
             SUBJECT="$2"
             shift # past argument
             shift # past value
             ;;
 
-            --san)
-            SUBJECT_ALTERNATIVE_NAME="$2"
+            --expiration)
+            EXPIRATION_DATE="$2"
             shift # past argument
             shift # past value
             ;;
@@ -126,13 +130,13 @@ parse_args() {
             shift # past argument
             ;;
 
-            --debug)
-            DEBUG=1
+            --force)
+            FORCE=1
             shift # past argument
             ;;
 
-            --force)
-            FORCE=1
+            --debug)
+            DEBUG=1
             shift # past argument
             ;;
 
@@ -204,11 +208,11 @@ if [ ! -f $MANIFEST_SGX ] || [ $FORCE -eq 1 ]; then
             chown -R "$OWNER_GROUP" "$CERT_PATH"
         fi
 
-        SSL_APP_MODE="--certificate"
-        SSL_APP_MODE_VALUE="$CERT_PATH"
+        SSL_APP_OPT="--certificate"
+        SSL_APP_VALUE="$CERT_PATH"
     else
-        SSL_APP_MODE="--ratls"
-        SSL_APP_MODE_VALUE="$EXPIRATION_DATE"
+        SSL_APP_OPT="--ratls"
+        SSL_APP_VALUE="$EXPIRATION_DATE"
     fi
 
     # Remove previous generated files if exists
@@ -216,23 +220,23 @@ if [ ! -f $MANIFEST_SGX ] || [ $FORCE -eq 1 ]; then
         rm -rf $CODE_DIR $HOME_DIR $KEY_DIR
     fi
 
-    TIMEOUT_MODE=""
+    TIMEOUT_OPT=""
     if [ -n "$TIMEOUT" ]; then
-        TIMEOUT_MODE="--timeout"
+        TIMEOUT_OPT="--timeout"
     fi
 
     # Prepare gramine argv
-    # /!\ no double quote around $SSL_APP_MODE_VALUE which might be empty
+    # /!\ no double quote around $SSL_APP_VALUE which might be empty
     # otherwise it will be serialized by gramine
     gramine-argv-serializer "/usr/bin/python3" "-S" "/usr/local/bin/cenclave-bootstrap" \
-        "$SSL_APP_MODE" $SSL_APP_MODE_VALUE \
+        "$SSL_APP_OPT" $SSL_APP_VALUE \
         "--host" "$HOST" \
         "--port" "$PORT" \
         "--app-dir" "$APP_DIR" \
         "--subject" "$SUBJECT" \
         "--san" "$SUBJECT_ALTERNATIVE_NAME" \
         "--id" "$ID" \
-        $TIMEOUT_MODE $TIMEOUT \
+        $TIMEOUT_OPT $TIMEOUT \
         "$APPLICATION" > args
 
     echo "Generating the enclave..."
@@ -248,7 +252,7 @@ if [ ! -f $MANIFEST_SGX ] || [ $FORCE -eq 1 ]; then
     fi
 
     # Build the gramine program
-    make clean && make SGX=1 $VENV \
+    make clean && make SGX=1 "$VENV" \
                     DEBUG="$DEBUG" \
                     ENCLAVE_SIZE="$ENCLAVE_SIZE" \
                     APP_DIR="$APP_DIR" \
