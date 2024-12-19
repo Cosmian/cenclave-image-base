@@ -57,7 +57,7 @@ RUN python3 -m venv $GRAMINE_VENV
 # Install Cosmian Enclave SGX library
 RUN . "$GRAMINE_VENV/bin/activate" && \
     python3 -m pip install -U pip setuptools && \
-    python3 -m pip install -U cenclave-lib-sgx==1.0.0
+    python3 -m pip install -U cenclave-lib-sgx==1.1.0
 
 WORKDIR /root
 
