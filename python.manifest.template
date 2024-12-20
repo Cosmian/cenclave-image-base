@@ -1,4 +1,3 @@
-loader.entrypoint = "file:{{ gramine.libos }}"
 libos.entrypoint = "{{ entrypoint }}"
 loader.log_level = "{{ log_level }}"
 
@@ -24,6 +23,7 @@ sys.disallow_subprocesses = true
 fs.mounts = [
   { path = "/lib", uri = "file:{{ gramine.runtimedir() }}" },
   { path = "{{ arch_libdir }}", uri = "file:{{ arch_libdir }}" },
+  { path = "/usr/{{ arch_libdir }}", uri = "file:/usr/{{ arch_libdir }}" },
   { path = "{{ entrypoint }}", uri = "file:{{ entrypoint }}" },
   { path = "{{ python.stdlib }}", uri = "file:{{ python.stdlib }}" },
   { path = "/usr/local/bin/cenclave-bootstrap", uri = "file:{{ env.get('GRAMINE_VENV', '/usr/local') }}/bin/cenclave-bootstrap" },
@@ -43,7 +43,6 @@ sgx.isvsvn = 10
 
 sgx.trusted_files = [
   "file:{{ entrypoint }}",
-  "file:{{ gramine.libos }}",
   "file:{{ gramine.runtimedir() }}/",
   "file:{{ arch_libdir }}/",
   "file:/usr/{{ arch_libdir }}/",
