@@ -207,7 +207,32 @@ if [ ! -f $MANIFEST_SGX ] || [ $FORCE -eq 1 ]; then
         fi
     fi
 
-    # Prepare the certificate if necessary
+
+    # Remove previous generated files if exists
+    if [ $FORCE -eq 1 ]; then
+        rm -rf $CODE_DIR $HOME_DIR $KEY_DIR
+    fi
+
+    garmine_args=(
+        "/usr/bin/python3"
+        "-S"
+        "/usr/local/bin/cenclave-bootstrap"
+        "--host" "$HOST"
+        "--port" "$PORT"
+        "--app-dir" "$APP_DIR"
+        "--subject" "$SUBJECT"
+        "--san" "$SUBJECT_ALTERNATIVE_NAME"
+        "--id" "$ID"
+    )
+
+    if [ -n "$TIMEOUT" ]; then
+        garmine_args+=("--timeout" "$TIMEOUT")
+    fi
+
+    if [ -n "$CLIENT_CERT" ]; then
+        garmine_args+=("--client-certificate" "$CLIENT_CERT")
+    fi
+
     if [ -f "$PACKAGE_CERT_PATH" ]; then
         cp "$PACKAGE_CERT_PATH" "$CERT_PATH"
 
@@ -216,42 +241,15 @@ if [ ! -f $MANIFEST_SGX ] || [ $FORCE -eq 1 ]; then
             chown -R "$OWNER_GROUP" "$CERT_PATH"
         fi
 
-        SSL_APP_OPT="--certificate"
-        SSL_APP_VALUE="$CERT_PATH"
+        garmine_args+=("--certificate" "$CERT_PATH")
     else
-        SSL_APP_OPT="--ratls"
-        SSL_APP_VALUE="$EXPIRATION_DATE"
+        garmine_args+=("--ratls" "$EXPIRATION_DATE")
     fi
 
-    # Remove previous generated files if exists
-    if [ $FORCE -eq 1 ]; then
-        rm -rf $CODE_DIR $HOME_DIR $KEY_DIR
-    fi
+    garmine_args+=("$APPLICATION")
 
-    TIMEOUT_OPT=""
-    if [ -n "$TIMEOUT" ]; then
-        TIMEOUT_OPT="--timeout"
-    fi
-
-    CLIENT_CERT_OPT=""
-    if [ -n "$CLIENT_CERT" ]; then
-        CLIENT_CERT_OPT="--client-certificate"
-    fi
-
-    # Prepare gramine argv
-    # /!\ no double quote around $SSL_APP_VALUE which might be empty
-    # otherwise it will be serialized by gramine
-    gramine-argv-serializer "/usr/bin/python3" "-S" "/usr/local/bin/cenclave-bootstrap" \
-        "$SSL_APP_OPT" $SSL_APP_VALUE \
-        "--host" "$HOST" \
-        "--port" "$PORT" \
-        "--app-dir" "$APP_DIR" \
-        "--subject" "$SUBJECT" \
-        "--san" "$SUBJECT_ALTERNATIVE_NAME" \
-        "--id" "$ID" \
-        $TIMEOUT_OPT $TIMEOUT \
-        $CLIENT_CERT_OPT $CLIENT_CERT \
-        "$APPLICATION" > args
+    # Prepare gramine arguments
+    gramine-argv-serializer "${garmine_args[@]}" > args
 
     echo "Generating the enclave..."
 
