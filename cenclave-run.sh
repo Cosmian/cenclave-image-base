@@ -251,8 +251,6 @@ if [ ! -f $MANIFEST_SGX ] || [ $FORCE -eq 1 ]; then
     # Prepare gramine arguments
     gramine-argv-serializer "${garmine_args[@]}" > args
 
-    echo "Generating the enclave..."
-
     if [ $DRY_RUN -eq 1 ]; then
         # Generate a dummy key if you just want to get MRENCLAVE
         gramine-sgx-gen-private-key
