@@ -3,7 +3,7 @@
 set -e
 
 usage() {
-    echo "cenclave-run usage: $0 --application <module:application> --size <size> --san <domain_name> --id <uuid> [--host <host>] [--port <port>] [--subject <subject>] [--expiration <expiration_timestamp>] [--timeout <seconds>] [--client-certificate <pem_certificate>] [--dry-run] [--memory] [--force] [--debug]"
+    echo "cenclave-run usage: $0 --application <module:application> --size <size> --san <domain_name> --id <uuid> [--host <host>] [--port <port>] [--subject <subject>] [--expiration <expiration_timestamp>] [--timeout <seconds>] [--client-certificate <pem_certificate>] [--ssl-verify-mode <ssl_mode>] [--dry-run] [--memory] [--force] [--debug]"
     echo ""
     echo "The code tarball [mandatory] (app.tar) and the SSL certificate [optional] (fullchain.pem) should be placed in $PACKAGE_DIR"
     echo ""
@@ -20,6 +20,7 @@ usage() {
     echo -e "\t--expiration         expiration date of the RA-TLS certificate (unix timestamp)"
     echo -e "\t--timeout            time before stopping the configuration server (in seconds)"
     echo -e "\t--client-certificate certificate for client certificate authentication (PEM-encoded)"
+    echo -e "\t--ssl-verify-mode    SSL mode for client cert auth (CERT_OPTIONAL (1) or CERT_REQUIRED (2))"
     echo -e "\t--dry-run            compute MRENCLAVE hash digest (no SGX processor required)"
     echo -e "\t--memory             print expected memory usage of the application"
     echo -e "\t--force              clean before compilation for Gramine"
@@ -46,6 +47,7 @@ set_default_variables() {
     PORT="443"
     SUBJECT="CN=cosmian.io,O=Cosmian Tech,C=FR,L=Paris,ST=Ile-de-France"
     CLIENT_CERT=""
+    SSL_VERIFY_MODE=2
 
     # Constant variables
     PACKAGE_DIR="/opt/input" # Location of the src package
@@ -124,6 +126,12 @@ parse_args() {
 
             --client-certificate)
             CLIENT_CERT="$2"
+            shift # past argument
+            shift # past value
+            ;;
+
+            --ssl-verify-mode)
+            SSL_VERIFY_MODE="$2"
             shift # past argument
             shift # past value
             ;;
@@ -231,6 +239,7 @@ if [ ! -f $MANIFEST_SGX ] || [ $FORCE -eq 1 ]; then
 
     if [ -n "$CLIENT_CERT" ]; then
         garmine_args+=("--client-certificate" "$CLIENT_CERT")
+        garmine_args+=("--ssl-verify-mode" "$SSL_VERIFY_MODE")
     fi
 
     if [ -f "$PACKAGE_CERT_PATH" ]; then
